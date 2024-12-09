@@ -1,0 +1,48 @@
+cargo run 
+   Compiling basic-web-server v0.1.0 (/home/joel/coding/personal/basic-web-server)
+error[E0423]: expected value, found macro `file`
+  --> src/main.rs:53:33
+   |
+53 |     let contains = is_in_vector(file.to_string(), dirs);
+   |                                 ^^^^ not a value
+
+error[E0425]: cannot find value `dirs` in this scope
+  --> src/main.rs:53:51
+   |
+53 |     let contains = is_in_vector(file.to_string(), dirs);
+   |                                                   ^^^^ not found in this scope
+
+error[E0425]: cannot find value `full_file` in this scope
+  --> src/main.rs:54:5
+   |
+54 |     full_file.push_str(&file);
+   |     ^^^^^^^^^ not found in this scope
+
+error[E0423]: expected value, found macro `file`
+  --> src/main.rs:54:25
+   |
+54 |     full_file.push_str(&file);
+   |                         ^^^^ not a value
+
+error[E0425]: cannot find value `full_file` in this scope
+  --> src/main.rs:70:36
+   |
+70 |     let contents = fs::read_to_string(full_file).unwrap();
+   |                                       ^^^^^^^^^ not found in this scope
+
+error[E0308]: mismatched types
+   --> src/main.rs:111:5
+    |
+92  | fn file_target(request: String) -> String {
+    |                                    ------ expected `String` because of return type
+...
+111 |     contains
+    |     ^^^^^^^^- help: try using a conversion method: `.to_string()`
+    |     |
+    |     expected `String`, found `bool`
+
+Some errors have detailed explanations: E0308, E0423, E0425.
+For more information about an error, try `rustc --explain E0308`.
+error: could not compile `basic-web-server` (bin "basic-web-server") due to 6 previous errors
+
+cargo-run exited abnormally with code 101 at Mon Dec  9 11:52:08

@@ -1,0 +1,4 @@
+cargo run 
+   Compiling basic-web-server v0.1.0 (/home/joel/coding/personal/basic-web-server)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.46s
+     Running `target/debug/basic-web-server`
