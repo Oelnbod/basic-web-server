@@ -1,3 +1,5 @@
+//DO NOT FORGET TO GIT COMMIT!!!!
+
 use threadpool::ThreadPool;
 use std::{
     fs,
@@ -6,22 +8,37 @@ use std::{
     net::{TcpListener, TcpStream},
     thread,
 };
-
+use serde::{Deserialize, Serialize};
+use serde_yaml::{self};
 
 fn main() {
-    
-    let listener = TcpListener::bind("0.0.0.0:7878").unwrap(); //note, well know port require sudo (which doesn't have cargo)
-    let pool = ThreadPool::new(4); //change this to allow more threads
-    for stream in listener.incoming() {
-        let stream = stream.unwrap();
 
-	pool.execute(|| {
+    //this is loading the configuration file from config.yaml
+    let settings = parse_yaml();
+    let num_threads: &u8 = &settings[0].parse().expect("Conversiion error on reading yaml to variable.");
+    //let thread_count: usize = usize::from(num_threads);
+    let target = &settings[1];
+    let port = &settings[2];
+
+    let mut socket = target.to_owned();
+    socket.push_str(":");
+    socket.push_str(&port);
+    println!("{}", socket);
+    
+    let listener = TcpListener::bind(socket).unwrap(); //note, well know port require sudo (which doesn't have cargo)
+    let pool = ThreadPool::new(*num_threads as usize); //change this to allow more threads
+    
+    for stream in listener.incoming() { 
+	
+	let stream = stream.unwrap();
+
+	pool.execute(move || {
 	    
 	    handle_connection(stream);
 	    let threadnum = thread::current().id();
 	    println!("connection on: {:?}", threadnum);
 	});
-    }
+}
 }
 
 //this is where the main connection stuff is. Most other functions are referenced here.
@@ -39,7 +56,7 @@ fn handle_connection(mut stream: TcpStream) {
     
     let contains = is_in_vector(file.to_string(), dirs);
 
-    let mut full_file: String = "www/".to_string(); 
+    let mut full_file: String = "./www/".to_string(); 
     full_file.push_str(&file); //full_file is the file including the ./www/ bit
 
     
@@ -131,5 +148,31 @@ fn is_in_vector(file_name: String, file_list: Vec<String>) -> bool {
 }
 
 
+//this bit is for reading yaml for parsing as the configuration file
 
+#[derive(Debug, Serialize, Deserialize)]
+struct Config {
+    num_threads: u16,
+    target: String,
+    port: String
+}
 
+fn parse_yaml() -> Vec<String> {
+
+    let f = std::fs::File::open("config.yaml").expect("Could not open file."); //reading file
+    let scrape_config: Config = serde_yaml::from_reader(f).expect("Could not read values."); //deserializing
+
+    //println!("{:?}", scrape_config);
+
+    //let mut configs: Vec<String> = Vec::new();
+
+    let num_threads: String = scrape_config.num_threads.to_string();
+    
+    let target: String = scrape_config.target;
+    let port: String = scrape_config.port;
+
+    let configs = vec![num_threads, target, port];
+    //println!("{:?}", configs);
+
+    configs
+}

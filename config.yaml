@@ -1,0 +1,10 @@
+#this is the number of threads that you want to use
+num_threads: 4
+
+
+
+#this is the ips that can recieve this, leave at 0.0.0.0 unless you want this accessible only by one computer. 
+target:  0.0.0.0
+
+#this is the port. well-know ports only appear to work with sudo/root
+port: 7878
