@@ -12,7 +12,6 @@ use serde::{Deserialize, Serialize};
 use serde_yaml::{self};
 
 fn main() {
-
     //this is loading the configuration file from config.yaml
     let settings = parse_yaml();
     let num_threads: &u8 = &settings[0].parse().expect("Conversiion error on reading yaml to variable.");
@@ -25,7 +24,7 @@ fn main() {
     socket.push_str(&port);
     println!("{}", socket);
     
-    let listener = TcpListener::bind(socket).unwrap(); //note, well know port require sudo (which doesn't have cargo)
+    let listener = TcpListener::bind(socket).unwrap(); //note: well know port require sudo (which doesn't have cargo)
     let pool = ThreadPool::new(*num_threads as usize); //change this to allow more threads
     
     for stream in listener.incoming() { 
@@ -42,7 +41,7 @@ fn main() {
 }
 
 //this is where the main connection stuff is. Most other functions are referenced here.
-fn handle_connection(mut stream: TcpStream) {
+fn handle_connection(mut stream: TcpStream)  {
     
     //reading the request
     let buf_reader = BufReader::new(&mut stream);
@@ -50,15 +49,13 @@ fn handle_connection(mut stream: TcpStream) {
 
     // this next bit returns the bit after the /  in the http request
 
-    let dirs = list_dirs(); 
-
-    let file = file_target(&request_line); //this is the file inside www, i.e., index.html
-    
-    let contains = is_in_vector(file.to_string(), dirs);
-
+    let file = file_target(&request_line); //this is the file but after the slash that was entered
+ 
+    let target = return_file(file.to_string());
+     
     let mut full_file: String = "./www/".to_string(); 
-    full_file.push_str(&file); //full_file is the file including the ./www/ bit
-
+    full_file.push_str(&target); //full_file is the file including the ./www/ bit
+    println!("{full_file}");
     
     if request_line == "GET / HTTP/1.1" {
 	//this is different so that the index.html is the landing page
@@ -72,9 +69,7 @@ fn handle_connection(mut stream: TcpStream) {
 
         stream.write_all(response.as_bytes()).unwrap();
     
-    } else if contains == true {
-	println!("file found!!"); //diagnostics
-	
+    } else {
 	let status_line = "HTTP/1.1 200 OK";
 	let contents = fs::read_to_string(full_file).unwrap();
 	let length = contents.len();
@@ -83,43 +78,35 @@ fn handle_connection(mut stream: TcpStream) {
 	    "{status_line}\r\nContent-Length: {length}\r\n\r\n{contents}"
 	);
 	stream.write_all(response.as_bytes()).unwrap();
-	// use elif to send other html pages
+
+	//note: there is no 404.html exception as this is handled by return_file()
 	
-    } else {
-	let status_line = "HTTP/1.1 404 NOT FOUND";
-        let contents = fs::read_to_string("404.html").unwrap();
-        let length = contents.len();
-
-        let response = format!(
-            "{status_line}\r\nContent-Length: {length}\r\n\r\n{contents}"
-        );
-
-        stream.write_all(response.as_bytes()).unwrap();
-    }
+    } 
 }
 
 fn file_target(request: &String) -> String {
+    //note, this is done weirdly as we don't know the length of the file requested
     let length = request.len();
     let file_name_part_1 = &request.to_string()[5..length]; //removing start
 
     let file_name_part_2 = &file_name_part_1.chars().rev().collect::<String>(); //reversing
 
-    let length  = file_name_part_2.len();
+    let length  = file_name_part_2.len(); //overwriting length as new
 
-    let file_name_part_3 = &file_name_part_2[9..length];
-    let file_name = &file_name_part_3.chars().rev().collect::<String>();
-    println!("{}", file_name);
+    let file_name_part_3 = &file_name_part_2[9..length]; //removing start of reversed (so end of normal)
     
-    let mut file: String = file_name.to_owned();
+    let file_name = &file_name_part_3.chars().rev().collect::<String>(); //this reverses again for normal
     
-    file.push_str(".html");
+    let file: String = file_name.to_owned(); //casting to string and not &reference
+
     file
 
 }
 
 
 
-//this returns a Vec<String> of the files that can be checked against 
+//this returns a Vec<String> of the files that can be checked against
+//the normal method returns Vec<ReadDir>, this is a set of glorified (and painful) conversions  
 fn list_dirs() -> Vec<String> {
         let mut files = Vec::new();
 
@@ -140,18 +127,46 @@ fn list_dirs() -> Vec<String> {
     files
 }
 
-//this just checks if the file is in the list. Returns a bool
+//this just checks if the file is in the list. Returns a bool, I should remove this later and just use .contains
 fn is_in_vector(file_name: String, file_list: Vec<String>) -> bool {
     let content = file_list.contains(&file_name);
-    println!("{}", content);
+    //println!("{}", content);
     content
 }
+
+
+
+//this takes the input file (i.e., index.html) and then returns the file to look up (supports images, etc)
+fn return_file(in_file: String) -> String {
+    
+    let dirs = list_dirs(); //dirs to check against 
+    let extension = ".html"; //extension that gets appended later
+    let full_file = &mut in_file.to_string(); //this is needed for appending to later (and so has to be mut) 
+
+    
+    if is_in_vector(in_file.clone(), dirs.clone())  == true { //here we are checking if the user enters a valid file, i.e. index.html or favicon.ico. .clone() is used as variables need reusing later
+	in_file //returning it straigh back
+
+    } else { //this is where we deal with files that should have .html appended to them
+	full_file.push_str(extension); //appending .html to the file
+
+	if is_in_vector(full_file.to_string(), dirs) == true { //if the .html appended file exists, it returns it
+	    full_file.to_string() 
+	} else { //not all .html appended files exist, so just returns the 404.html page
+	    println!("404.html");
+	    "404.html".to_string()
+	}
+    }
+
+}
+
+
 
 
 //this bit is for reading yaml for parsing as the configuration file
 
 #[derive(Debug, Serialize, Deserialize)]
-struct Config {
+struct Config { //this is an index from the yaml configuration file. New entries need to be added in order when features are added
     num_threads: u16,
     target: String,
     port: String
@@ -162,17 +177,16 @@ fn parse_yaml() -> Vec<String> {
     let f = std::fs::File::open("config.yaml").expect("Could not open file."); //reading file
     let scrape_config: Config = serde_yaml::from_reader(f).expect("Could not read values."); //deserializing
 
-    //println!("{:?}", scrape_config);
-
-    //let mut configs: Vec<String> = Vec::new();
-
-    let num_threads: String = scrape_config.num_threads.to_string();
-    
+    //this is reading the values to variables
+    let num_threads: String = scrape_config.num_threads.to_string(); 
     let target: String = scrape_config.target;
     let port: String = scrape_config.port;
 
+    //appending to a vector that can then be passed to other functions
     let configs = vec![num_threads, target, port];
-    //println!("{:?}", configs);
-
+   
+    //returning
     configs
 }
+
+
