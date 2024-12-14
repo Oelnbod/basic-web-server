@@ -11,33 +11,73 @@ use std::{
 use serde::{Deserialize, Serialize};
 use serde_yaml::{self};
 
+//later on this should be switced to async (harder to debug, so do when working)
 fn main() {
     //this is loading the configuration file from config.yaml
     let settings = parse_yaml();
     let num_threads: &u8 = &settings[0].parse().expect("Conversiion error on reading yaml to variable.");
-    //let thread_count: usize = usize::from(num_threads);
     let target = &settings[1];
-    let port = &settings[2];
+    let http_port = &settings[2];
+    let https_port = &settings[3];
 
-    let mut socket = target.to_owned();
-    socket.push_str(":");
-    socket.push_str(&port);
-    println!("{}", socket);
+    //combining port and target ip range together for http
+    let mut http_socket = target.clone().to_owned();
+    http_socket.push_str(":");
+    http_socket.push_str(&http_port);
     
-    let listener = TcpListener::bind(socket).unwrap(); //note: well know port require sudo (which doesn't have cargo)
-    let pool = ThreadPool::new(*num_threads as usize); //change this to allow more threads
+    //combining port and target ip range together for http
+    let mut https_socket = target.to_owned();
+    https_socket.push_str(":");
+    https_socket.push_str(&https_port);
+   
     
-    for stream in listener.incoming() { 
-	
-	let stream = stream.unwrap();
+    let listener = TcpListener::bind(http_socket).unwrap(); //this is the listener for http
+    let sec_listener = TcpListener::bind(https_socket).unwrap(); //this is the listener for https
 
-	pool.execute(move || {
-	    
-	    handle_connection(stream);
-	    let threadnum = thread::current().id();
-	    println!("connection on: {:?}", threadnum);
-	});
-}
+    let pool = ThreadPool::new((num_threads/2) as usize); //this is a pool that gets cloned to allow for two ports opened (and hence divided by 2)
+
+    //these are the cloned ports that get used for http & https
+    let pool_https = pool.clone();
+    let pool_http = pool.clone();
+    
+
+    //this is the https connection
+    thread::spawn(move || {
+	for stream in sec_listener.incoming() {
+	    match stream {
+		Ok(stream) => {
+		    pool_https.execute(move || {
+			handle_connection(stream);
+		    });
+		}
+		Err(_e) => {
+		    eprintln!("failed to connect");
+		}
+	    }
+	}
+    });
+
+    //this is the http connection
+    thread::spawn(move || {
+	for stream in listener.incoming() {
+	    match stream {
+		Ok(stream) => {
+		    pool_http.execute(move || {
+			handle_connection(stream);
+		    });
+		}
+		Err(_e) => {
+		    eprintln!("failed to connect");
+		}
+	    }
+	}
+    });
+    
+    //this prevents the main thread from ending (allow the previous ones to repeat)
+    loop {
+	thread::park();
+    };
+
 }
 
 //this is where the main connection stuff is. Most other functions are referenced here.
@@ -169,7 +209,8 @@ fn return_file(in_file: String) -> String {
 struct Config { //this is an index from the yaml configuration file. New entries need to be added in order when features are added
     num_threads: u16,
     target: String,
-    port: String
+    http_port: String,
+    https_port: String
 }
 
 fn parse_yaml() -> Vec<String> {
@@ -180,10 +221,10 @@ fn parse_yaml() -> Vec<String> {
     //this is reading the values to variables
     let num_threads: String = scrape_config.num_threads.to_string(); 
     let target: String = scrape_config.target;
-    let port: String = scrape_config.port;
-
+    let http_port: String = scrape_config.http_port;
+    let https_port: String = scrape_config.https_port;
     //appending to a vector that can then be passed to other functions
-    let configs = vec![num_threads, target, port];
+    let configs = vec![num_threads, target, http_port, https_port];
    
     //returning
     configs

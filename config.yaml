@@ -6,5 +6,8 @@ num_threads: 20
 #this is the ips that can recieve this, leave at 0.0.0.0 unless you want this accessible only by one computer. 
 target:  0.0.0.0
 
-#this is the port. well-know ports only appear to work with sudo/root
-port: 7878
+#this is the port for http. well-know ports only appear to work with sudo/root
+http_port: 7878
+
+#this is the port of https (see above)
+https_port: 7979
