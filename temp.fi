@@ -1,0 +1,31 @@
+fn tls_connection() {
+    let mut args = env::args();
+    args.next();
+    let cert_file = "cert.pem";
+    let priv_key_file = "privkey.pem";
+
+    let certs = CertificateDer::pem_file_iter(cert_file)
+        .unwrap()
+        .map(|cert| cert.unwrap())
+        .collect();
+    let private_key = PrivateKeyDer::from_pem_file(priv_key_file).unwrap();
+    let config = rustls::ServerConfig::builder()
+        .with_no_client_auth()
+        .with_single_cert(certs, private_key)
+        .expect("err");
+
+    let listener = TcpListener::bind("0.0.0.0:7979").unwrap();
+
+    for stream in listener.incoming() {
+	match stream {
+	    Ok(stream) => {
+		handle_connection(stream);
+	    }
+	    Err(_e) => {
+		eprintln!("failed to connect")
+	    }
+	}
+
+    };
+    
+}
